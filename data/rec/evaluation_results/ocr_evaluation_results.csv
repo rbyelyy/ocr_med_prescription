@@ -1,0 +1,2 @@
+Image,Ground Truth,Prediction,Confidence,CER,WER
+ИХА_отрицательно_russia_normal_6_42.jpg,"ИХА отрицательно","йцBпусйчбужмьоп",0.9240,0.9375,1.0000

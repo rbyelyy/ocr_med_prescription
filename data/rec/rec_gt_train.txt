@@ -1,10 +1,1 @@
-/home/ubuntu/OCR/data/rec/train/6.jpg	ИНЗ:
-/home/ubuntu/OCR/data/rec/train/7.jpg	Дата взятия образца:
-/home/ubuntu/OCR/data/rec/train/8.jpg	07.10.201711:25
-/home/ubuntu/OCR/data/rec/train/9.jpg	Дата поступления образца:
-/home/ubuntu/OCR/data/rec/train/10.jpg	07.10.201717:40
-/home/ubuntu/OCR/data/rec/train/11.jpg	Врач:
-/home/ubuntu/OCR/data/rec/train/12.jpg	07.10.201720:47
-/home/ubuntu/OCR/data/rec/train/13.jpg	Дата печати результат:
-/home/ubuntu/OCR/data/rec/train/14.jpg	07.10.201721:09
-/home/ubuntu/OCR/data/rec/train/15.jpg	Исследование
+/home/ubuntu/OCR/data/rec/train/images/ИХА_отрицательно_russia_normal_6_42.jpg	ИХА отрицательно

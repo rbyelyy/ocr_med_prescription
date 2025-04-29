@@ -1,0 +1,16 @@
+===== OCR EVALUATION SUMMARY =====
+Model: /home/ubuntu/OCR/inference/cyrillic_PP-OCRv3_rec
+Test data: /home/ubuntu/OCR/data/rec/train
+
+Total images processed: 1
+Correctly predicted: 0
+Accuracy: 0.00%
+Average CER: 0.9375
+Average WER: 1.0000
+
+===== TOP 10 WORST PREDICTIONS (by CER) =====
+1. ИХА_отрицательно_russia_normal_6_42.jpg:
+   Expected: 'ИХА отрицательно'
+   Predicted: 'йцBпусйчбужмьоп'
+   CER: 0.9375, WER: 1.0000
+

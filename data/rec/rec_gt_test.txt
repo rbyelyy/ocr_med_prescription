@@ -1,6 +1,1 @@
-/home/ubuntu/OCR/data/rec/test/0.jpg	ИНВИТРО
-/home/ubuntu/OCR/data/rec/test/1.jpg	АННА
-/home/ubuntu/OCR/data/rec/test/2.jpg	Пол
-/home/ubuntu/OCR/data/rec/test/3.jpg	Жен
-/home/ubuntu/OCR/data/rec/test/4.jpg	Возраст
-/home/ubuntu/OCR/data/rec/test/5.jpg	31 год
+/home/ubuntu/OCR/data/rec/test/images/Клопидогрел_75_мг_calibri_normal_1_42.jpg	Клопидогрел 75 мг
