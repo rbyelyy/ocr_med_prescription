@@ -84,200 +84,6 @@ class LoggingManager:
         return wrapper
 
 
-# --- OCR Visualization ---
-
-
-class OCRVisualizer:
-    """Handles visualization of OCR results on images."""
-
-    _logger = logging.getLogger("OCR_System.OCRVisualizer")
-
-    @staticmethod
-    def _load_font(font_name: str, font_size: int) -> ImageFont.FreeTypeFont:
-        """Load specified font or fall back to default."""
-        logger = OCRVisualizer._logger
-        try:
-            font = ImageFont.truetype(font_name, font_size)
-            logger.debug(f"Font loaded: {font_name}, size {font_size}")
-            return font
-        except (ImportError, IOError):
-            logger.warning(f"Font '{font_name}' not found. Using default font.")
-            return ImageFont.load_default()
-
-    @staticmethod
-    def _find_suitable_font(font_size: int = 10) -> ImageFont.FreeTypeFont:
-        """Find and load a suitable font with multi-language support."""
-        logger = OCRVisualizer._logger
-
-        font_paths = [
-            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-            "/usr/share/fonts/truetype/open-sans/OpenSans-Regular.ttf",
-            "/usr/share/fonts/truetype/croscore/Arimo-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
-
-        for path in font_paths:
-            try:
-                font = ImageFont.truetype(path, size=font_size)
-                logger.info(f"Using font: {path}")
-                return font
-            except IOError:
-                continue
-
-        logger.warning("No suitable font found. Using default font.")
-        font = ImageFont.load_default()
-        return font
-
-    @staticmethod
-    @LoggingManager.log_execution_time
-    def plot_bounding_boxes(
-        image_path: str,
-        bounding_boxes: Union[str, List[Dict]],
-        input_width: int,
-        input_height: int,
-        save_path: Optional[str] = None,
-    ) -> Optional[Image.Image]:
-        """Plot bounding boxes with text on an image using normalized coordinates."""
-        logger = OCRVisualizer._logger
-        logger.info(f"Plotting bounding boxes on image: {image_path}")
-
-        # Load the image
-        try:
-            img = Image.open(image_path)
-            logger.debug(f"Image loaded: {img.size[0]}x{img.size[1]}")
-        except FileNotFoundError:
-            logger.error(f"Image not found at '{image_path}'")
-            return None
-        except Exception as e:
-            logger.error(f"Error loading image: {str(e)}", exc_info=True)
-            return None
-
-        width, height = img.size
-        draw = ImageDraw.Draw(img)
-
-        # Handle JSON string input for bounding boxes
-        if isinstance(bounding_boxes, str):
-            logger.debug("Converting string bounding boxes to objects")
-            bounding_boxes = JSONProcessor.parse_json(bounding_boxes)
-            try:
-                bounding_boxes = ast.literal_eval(bounding_boxes)
-            except (SyntaxError, ValueError) as e:
-                logger.error(
-                    f"Error parsing bounding box data: {str(e)}", exc_info=True
-                )
-                return None
-
-        # Find suitable font
-        font = OCRVisualizer._find_suitable_font()
-
-        # Draw each bounding box
-        logger.info(f"Drawing {len(bounding_boxes)} bounding boxes")
-        for i, bbox_info in enumerate(bounding_boxes):
-            color = "green"
-            bbox = bbox_info.get("bbox")
-            text_content = bbox_info.get("text", bbox_info.get("text_content", ""))
-
-            # Skip if bounding box info is missing
-            if not bbox:
-                logger.warning(f"Bounding box info missing for item {i}")
-                continue
-
-            # Convert normalized coordinates to absolute if needed
-            if max(bbox) <= 1.0:  # Normalized coordinates
-                logger.debug(f"Converting normalized coordinates for bbox {i}")
-                abs_y1 = int(bbox[1] * height)
-                abs_x1 = int(bbox[0] * width)
-                abs_y2 = int(bbox[3] * height)
-                abs_x2 = int(bbox[2] * width)
-            else:  # Absolute coordinates
-                abs_x1, abs_y1, abs_x2, abs_y2 = [int(coord) for coord in bbox]
-
-            # Ensure x1 <= x2 and y1 <= y2
-            x1, y1 = min(abs_x1, abs_x2), min(abs_y1, abs_y2)
-            x2, y2 = max(abs_x1, abs_x2), max(abs_y1, abs_y2)
-
-            # Draw the rectangle
-            draw.rectangle(((x1, y1), (x2, y2)), outline=color, width=1)
-
-            # Add the text label if available
-            if text_content:
-                draw.text((x1, y2), text_content, fill=color, font=font)
-                logger.debug(f"Added text label for bbox {i}: {text_content[:20]}...")
-
-        # Save the image if a path was provided
-        if save_path:
-            try:
-                os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                img.save(save_path)
-                logger.info(f"Image with bounding boxes saved to {save_path}")
-            except Exception as e:
-                logger.error(f"Error saving image: {str(e)}", exc_info=True)
-                return None
-
-        return img
-
-    @staticmethod
-    @LoggingManager.log_execution_time
-    def render_on_canvas(
-        image_path: str,
-        json_response: List[Dict],
-        font_size: int = 8,
-        font_name: str = "arial.ttf",
-        save_path: Optional[str] = None,
-    ) -> Optional[Image.Image]:
-        """Render bounding boxes and text labels on a white canvas."""
-        logger = OCRVisualizer._logger
-        logger.info(f"Rendering annotations on canvas for image: {image_path}")
-
-        try:
-            # Load original image dimensions
-            original_img = Image.open(image_path)
-            canvas = Image.new("RGB", original_img.size, "white")
-            draw = ImageDraw.Draw(canvas)
-            font = OCRVisualizer._load_font(font_name, font_size)
-
-            logger.debug(f"Created white canvas with dimensions {canvas.size}")
-
-            # Draw each annotation
-            logger.info(f"Drawing {len(json_response)} annotations on canvas")
-            for i, annotation in enumerate(json_response):
-                text = annotation.get("text", "")
-                bbox = annotation.get("bbox")
-
-                if not bbox:
-                    logger.warning(f"Bounding box missing for annotation {i}")
-                    continue
-
-                x1, y1, x2, y2 = bbox
-
-                # Draw bounding box
-                draw.rectangle([(x1, y1), (x2, y2)], outline="red", width=2)
-
-                # Draw text label
-                text_position = (x1, y1 - font_size - 2)
-                draw.text(text_position, text, fill="blue", font=font)
-                logger.debug(f"Added annotation {i}: {text[:20]}...")
-
-            # Save the canvas if a path was provided
-            if save_path:
-                try:
-                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                    canvas.save(save_path)
-                    logger.info(f"Canvas with annotations saved to {save_path}")
-                except Exception as e:
-                    logger.error(f"Error saving canvas: {str(e)}", exc_info=True)
-                    return None
-
-            return canvas
-
-        except FileNotFoundError:
-            logger.error(f"Image not found at '{image_path}'")
-            return None
-        except Exception as e:
-            logger.error(f"An unexpected error occurred: {str(e)}", exc_info=True)
-            return None  # --- Logging Setup ---
-
-
 # --- Model Management ---
 
 
@@ -351,6 +157,119 @@ class ImageProcessor:
 
     @staticmethod
     @LoggingManager.log_execution_time
+    def check_file_type_and_process(
+        file_path: str, output_dir: str = None
+    ) -> List[str]:
+        """
+        Check if the file is a PDF or image and process accordingly.
+
+        Args:
+            file_path: Path to the file (PDF or image)
+            output_dir: Directory to save converted images if file is PDF
+
+        Returns:
+            List of image paths (original path if image, converted paths if PDF)
+        """
+        logger = ImageProcessor._logger
+
+        try:
+            # Check if file exists
+            if not os.path.exists(file_path):
+                logger.error(f"File not found at '{file_path}'")
+                return []
+
+            # Get file extension
+            file_ext = os.path.splitext(file_path)[1].lower()
+
+            # If file is PDF, convert to images
+            if file_ext == ".pdf":
+                logger.info(f"Detected PDF file: {file_path}")
+                converted_images = ImageProcessor.convert_pdf_to_images(
+                    pdf_path=file_path, output_dir=output_dir
+                )
+
+                if converted_images:
+                    logger.info(
+                        f"Successfully converted PDF to {len(converted_images)} images"
+                    )
+                    return converted_images
+                else:
+                    logger.error("Failed to convert PDF to images")
+                    return []
+
+            # If file is an image, return its path in a list
+            elif file_ext in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif"]:
+                logger.info(f"Detected image file: {file_path}")
+                return [file_path]
+
+            # Unsupported file type
+            else:
+                logger.error(f"Unsupported file type: {file_ext}")
+                return []
+
+        except Exception as e:
+            logger.error(f"Error in file type checking: {str(e)}", exc_info=True)
+            return []
+
+    @staticmethod
+    @LoggingManager.log_execution_time
+    def convert_pdf_to_images(
+        pdf_path: str, output_dir: str = None, dpi: int = 300
+    ) -> Optional[List[str]]:
+        """
+        Convert a PDF file to a list of images (one per page).
+
+        Args:
+            pdf_path: Path to the PDF file
+            output_dir: Directory to save images, if None uses same directory as PDF
+            dpi: Resolution for the output images
+
+        Returns:
+            List of paths to the generated images, or None if conversion failed
+        """
+        logger = ImageProcessor._logger
+        try:
+            # Check if PDF file exists
+            if not os.path.exists(pdf_path):
+                logger.error(f"PDF file not found at '{pdf_path}'")
+                return None
+
+            # If output directory not specified, use PDF directory
+            if output_dir is None:
+                output_dir = os.path.dirname(pdf_path)
+
+            # Create output directory if it doesn't exist
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Get PDF filename without extension for naming output images
+            pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
+
+            # Convert PDF to images using pdf2image library
+            from pdf2image import convert_from_path
+
+            images = convert_from_path(pdf_path, dpi=dpi)
+            image_paths = []
+
+            # Save each page as an image
+            for i, image in enumerate(images):
+                image_path = os.path.join(output_dir, f"{pdf_name}_page_{i+1}.jpg")
+                image.save(image_path, "JPEG")
+                image_paths.append(image_path)
+
+            logger.debug(f"Converted PDF to {len(image_paths)} images at {dpi} DPI")
+            return image_paths
+
+        except ImportError:
+            logger.error(
+                "pdf2image library not installed. Install with: pip install pdf2image"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Error converting PDF to images: {str(e)}", exc_info=True)
+            return None
+
+    @staticmethod
+    @LoggingManager.log_execution_time
     def get_image_dimensions(image_path: str) -> Tuple[int, int]:
         """Return width and height of an image."""
         logger = ImageProcessor._logger
@@ -369,19 +288,54 @@ class ImageProcessor:
     @staticmethod
     @LoggingManager.log_execution_time
     def load_and_resize(
-        image_path: str, size: Tuple[int, int] = (600, 800)
-    ) -> Optional[Image.Image]:
-        """Load an image and resize it to the specified dimensions."""
+        file_path: str, size: Tuple[int, int] = (600, 800), output_dir: str = None
+    ) -> Optional[List[Image.Image]]:
+        """
+        Load a file (image or PDF) and resize it to the specified dimensions.
+        If PDF, converts to images first.
+
+        Args:
+            file_path: Path to the file (PDF or image)
+            size: Dimensions to resize to
+            output_dir: Directory to save converted images if file is PDF
+
+        Returns:
+            List of resized PIL Image objects, or None if processing failed
+        """
         logger = ImageProcessor._logger
         try:
-            img = Image.open(image_path).convert("RGB").resize(size, Image.LANCZOS)
-            logger.debug(f"Image loaded and resized to {size}")
-            return img
-        except FileNotFoundError:
-            logger.error(f"Image not found at '{image_path}'")
-            return None
+            # Check file type and get list of image paths
+            image_paths = ImageProcessor.check_file_type_and_process(
+                file_path, output_dir
+            )
+
+            if not image_paths:
+                logger.error(f"No valid images found for processing from {file_path}")
+                return None
+
+            # Load and resize all images
+            resized_images = []
+            for img_path in image_paths:
+                try:
+                    img = (
+                        Image.open(img_path).convert("RGB").resize(size, Image.LANCZOS)
+                    )
+                    resized_images.append(img)
+                    logger.debug(f"Image {img_path} loaded and resized to {size}")
+                except Exception as e:
+                    logger.error(
+                        f"Error processing image {img_path}: {str(e)}", exc_info=True
+                    )
+
+            if not resized_images:
+                logger.error("Failed to process any of the images")
+                return None
+
+            logger.info(f"Successfully processed {len(resized_images)} images")
+            return resized_images
+
         except Exception as e:
-            logger.error(f"Error loading/resizing image: {str(e)}", exc_info=True)
+            logger.error(f"Error in load_and_resize: {str(e)}", exc_info=True)
             return None
 
     @staticmethod
@@ -620,8 +574,8 @@ class OCRVisualizer:
     def plot_bounding_boxes(
         image_path: str,
         bounding_boxes: Union[str, List[Dict]],
-        input_width: int,
-        input_height: int,
+        width: int,
+        height: int,
         save_path: Optional[str] = None,
     ) -> Optional[Image.Image]:
         """Plot bounding boxes with text on an image using normalized coordinates."""
@@ -686,18 +640,20 @@ class OCRVisualizer:
         return img
 
     @staticmethod
+    @LoggingManager.log_execution_time
     def render_on_canvas(
         image_path: str,
         json_response: List[Dict],
         font_size: int = 8,
         font_name: str = "arial.ttf",
         save_path: Optional[str] = None,
+        width: int = 600,
+        height: int = 800,
     ) -> Optional[Image.Image]:
         """Render bounding boxes and text labels on a white canvas."""
         try:
             # Load original image dimensions
-            original_img = Image.open(image_path)
-            canvas = Image.new("RGB", original_img.size, "white")
+            canvas = Image.new("RGB", (width, height), "white")
             draw = ImageDraw.Draw(canvas)
             font = OCRVisualizer._load_font(font_name, font_size)
 
@@ -748,6 +704,17 @@ def process_image(
 
     try:
         logger.info(f"Processing image: {image_path}")
+
+        image_paths = ImageProcessor.check_file_type_and_process(image_path, output_dir)
+
+        if not image_paths:
+            logger.error(f"Failed to process input file: {image_path}")
+            return None
+
+        # Use the first converted image for dimensions and processing
+        primary_image_path = image_paths[0]
+        image_path = primary_image_path  # TODO need to avoid it
+        dimensions = ImageProcessor.get_image_dimensions(primary_image_path)
 
         # Create output directory structure
         os.makedirs(output_dir, exist_ok=True)
@@ -810,7 +777,12 @@ def process_image(
         )
 
         OCRVisualizer.render_on_canvas(
-            image_path, json_response, font_size=8, save_path=canvas_output_path
+            image_path,
+            json_response,
+            font_size=8,
+            save_path=canvas_output_path,
+            width=600,
+            height=800,
         )
 
         logger.info(f"Successfully processed {image_path}")
